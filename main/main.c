@@ -61,6 +61,7 @@ void initialize_fram() {
     // address pins on PB4,PB5,PB6 (astar 8,9,10)
     // sda PD1 (astar 2)
     // SCL PD0 (astar 3)
+    i2c_init();     // initialize I2C library
 
 }
 /****************************************************************************
@@ -70,7 +71,6 @@ void initialize_system(void) {
     initialize_leds(); // set up the leds
     SetupHardware(); // usb communication
     initialize_fram();
-    i2c_init();     // initialize I2C library
     setupMStimer(); // the ms_ticks timer0
 }
 

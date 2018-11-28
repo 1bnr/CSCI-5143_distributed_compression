@@ -16,10 +16,12 @@ R/r: read\r\n\
 W/w: write\r\n\
 S/s: Set address\r\n"
 
+#define FRAM_W 0xA1
+#define FRAM_R 0xA0
 
 //extern volatile uint8_t in_ui_mode;
 volatile uint8_t ui_stage = 0;
-volatile uint8_t mem_location = 0x00;
+volatile uint8_t mem_location = 0x50;
 void handleInput(char c) {
 // WARNING: This uses a busy-wait, thus will block main loop until done
     const int COMMAND_BUFF_LEN = 16;
@@ -104,9 +106,10 @@ void handleCommand(char *command) {
             // READ COMMAND
             memset(&buffer, 0, 16);
             if (i2c_readReg(MB85RC_SLAVE_ID, mem_location, buffer, 16))
-              printf("ERROR in read\r\n");
-            else
-              printf("0x%d: %s\n", mem_location, (char *)buffer);
+            printf("ERROR in read\r\n");
+          else
+            for (int i=0;i< 16; i++)
+            printf("%04x: %04x\r\n", (mem_location+i), buffer[i]);
             break;
         }
 
@@ -114,9 +117,9 @@ void handleCommand(char *command) {
         case ('W'):
         case ('w'): {
             // WRITE COMMAND
-            sprintf((char *) buffer,"hello world");
-            if (i2c_writeReg(MB85RC_SLAVE_ID, mem_location, buffer, 11))
-              printf("ERROR in write\r\n");
+            sprintf((char *)buffer, "hello world");
+                if (i2c_writeReg(MB85RC_SLAVE_ID, mem_location, buffer, 11))
+                  printf("ERROR in write\r\n");
             break;
         }
 
