@@ -106,7 +106,7 @@ void handleCommand(char *command) {
             printf("ERROR in read\r\n");
           else
             for (int i=0;i< 16; i++)
-            printf("addr: 0x%04x-> %d\r\n", (mem_location+i), buffer[i]);
+            printf("addr: 0x%04x-> %c\r\n", (mem_location+i), (char)buffer[i]);
             break;
         }
 
