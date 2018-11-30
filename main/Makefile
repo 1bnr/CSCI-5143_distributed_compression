@@ -1,23 +1,13 @@
 PORT=/dev/ttyACM*
-
-
-
-ifndef VIRTUAL_SERIAL_PATH
-$(warning VIRTUAL_SERIAL_PATH must be set to use usb virtual serial)
-else
-CFLAGS+= -I$(VIRTUAL_SERIAL_PATH) -DVIRTUAL_SERIAL
-LDFLAGS+=  -L$(VIRTUAL_SERIAL_PATH) -lVirtualSerial
-endif
-
-ifneq ($(filter program,$(MAKECMDGOALS)),$())
-ifndef PORT
-$(error PORT must be set to program device)
-endif
-endif
+VIRTUAL_SERIAL_PATH=../virtualserial
 
 MCU=atmega32u4
 CFLAGS+= -g -Wall -mcall-prologues -mmcu=$(MCU) -Os -std=c99
+CFLAGS+= -I$(VIRTUAL_SERIAL_PATH) -DVIRTUAL_SERIAL
+
 LDFLAGS+= -Wl,-gc-sections -Wl,-relax
+LDFLAGS+=  -L$(VIRTUAL_SERIAL_PATH) -lVirtualSerial
+
 CC=avr-gcc
 TARGET=main
 SRCS = $(wildcard *.c)

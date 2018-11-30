@@ -1,10 +1,6 @@
-#ifdef VIRTUAL_SERIAL
-#include <VirtualSerial.h>
-#else
-#warning VirtualSerial not defined, USB IO may not work
-#define SetupHardware();
-#define USB_Mainloop_Handler();
-#endif
+
+extern void SetupHardware(void);
+extern void USB_Mainloop_Handler(void);
 
 void handleInput( char c );
 void handleCommand( char *command );

@@ -11,10 +11,7 @@
 
 # Run "make help" for target help.
 
-
-ifndef LUFA_PATH
-$(error LUFA_PATH must be set)
-endif
+LUFA_PATH=../lufa/LUFA
 
 MCU          = atmega32u4
 ARCH         = AVR8
@@ -27,7 +24,7 @@ SRC          = $(TARGET).c Descriptors.c $(LUFA_SRC_USB) $(LUFA_SRC_USBCLASS)
 CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -IConfig/
 
 lib: $(TARGET).a
-	avr-ar rcs lib$(TARGET).a VirtualSerial.o $(LUFA_SRC_USB) $(LUFA_SRC_USBCLASS)
+	avr-ar rcs lib$(TARGET).a Descriptors.o VirtualSerial.o $(LUFA_SRC_USB) $(LUFA_SRC_USBCLASS)
 
 # Default target
 all:

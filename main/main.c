@@ -2,16 +2,6 @@
 #define F_CPU 16000000UL
 #endif
 
-#ifdef VIRTUAL_SERIAL
-#include <VirtualSerial.h>
-#else
-#warning VirtualSerial not defined, USB IO may not work
-#define SetupHardware()       ;
-#define USB_Mainloop_Handler();
-#endif
-
-
-
 // library includes
 #include <avr/interrupt.h>
 #include <util/delay.h>
@@ -30,7 +20,6 @@
 #define write_pin PORTD2
 #define ro_mode() SET_BIT(write_control, write_pin)
 #define wr_mode() CLEAR_BIT(write_control, write_pin)
-
 
 
 // Uncomment this to print out debugging statements.
