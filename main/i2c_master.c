@@ -156,7 +156,8 @@ uint8_t i2c_receive(uint8_t address, uint8_t *data, uint16_t length) {
     return 0;
 }
 
-uint8_t i2c_writeReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t length) {
+uint8_t i2c_write_start(uint8_t devaddr, uint16_t regaddr)
+{
     i2c_init();
 
     if (i2c_start((devaddr << 1) | I2C_WRITE)) {
@@ -169,13 +170,17 @@ uint8_t i2c_writeReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t 
     // first write is the destinatino address
     i2c_write(regaddr >> 8);
     i2c_write(regaddr & 0xFF);
-    printf("address sent\r\n");
 
-    // now we can start writting data
-    int len = strlen((char *)data);
-    printf("%s: len: %d\r\n", (char *)data, len);
+    return 0;
+}
 
-    for (uint16_t i = 0; i < len; i++) {
+uint8_t i2c_writeReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t length) {
+    if (i2c_write_start(devaddr, regaddr)) {
+        printf("write_start failed");
+        return 1;
+    }
+
+    for (uint16_t i = 0; i < length; i++) {
         printf("writing data[%d]: %c\r\n", i, (char)data[i]);
 
         if (i2c_write(data[i])) {
@@ -188,6 +193,7 @@ uint8_t i2c_writeReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t 
 
     return 0;
 }
+
 
 uint8_t i2c_readReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t length) {
     // start device connection

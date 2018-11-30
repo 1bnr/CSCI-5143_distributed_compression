@@ -11,37 +11,34 @@
 #include "leds.h"
 #include "i2c_master.h"
 
-#define menuString "\
-R/r: read\r\n\
-W/w: write\r\n\
-S/s: Set address\r\n"
+#define menuString "(r)ead // (w)rite // (s)et address // (p)agewrite\r\n"
 
-//extern volatile uint8_t in_ui_mode;
-volatile uint8_t ui_stage = 0;
-volatile uint8_t mem_location = 0x0;
-void handleInput(char c) {
-// WARNING: This uses a busy-wait, thus will block main loop until done
-    const int COMMAND_BUFF_LEN = 16;
+typedef enum {
+    HANDLE_COMMAND, HANDLE_MEM_LOC
+} ui_stage_t;
+
+typedef void (*input_handler)(char *);
+
+static void handle_memory_location(char *input);
+
+input_handler handler = handleCommand;
+uint16_t mem_location = 0x0;
+
+static int read_line(char *buff, int max_len)
+{
     int i;
-    char command[COMMAND_BUFF_LEN + 1];
-
-    USB_Mainloop_Handler();
-
-    // Get chars until end-of-line received or buffer full
-    for (i = 0; i < COMMAND_BUFF_LEN; i++) {
-        // first char received as input parameter. next char fetched at bottom of for-loop
-
-        // if its backspace, reset index
-        if (c == '\b') {
-            i -= 2;
-            printf("\b \b");
-            continue;
+    for (i = 0; i < max_len; i++) {
+        char c = EOF;
+        while (c == EOF) {
+            USB_Mainloop_Handler();
+            c = fgetc(stdin);
         }
-        // if newline, go back 1 to write over
-        else if (c == '\n') {
+
+        if (c == '\n') {
             i--;
             continue;
         }
+
         // if return, we have complete input
         else if (c == '\r') {
             break;
@@ -50,46 +47,78 @@ void handleInput(char c) {
         // otherwise, we got a char - echo it back
         printf("%c", c);
         USB_Mainloop_Handler();
-        command[i] = c;
-
-        // in busy-wait until char received
-        c = EOF;
-
-        while (c == EOF) {
-            USB_Mainloop_Handler();
-            c = fgetc(stdin);
-        }
+        buff[i] = c;
     }
+
+    buff[i] = '\0';
+    return i;
+}
+
+static void handle_memory_location(char *location)
+{
+    mem_location = atoi(location);
+    printf("new address is %d\r\n\n", mem_location);
+    handler = handleCommand;
+}
+
+static void execute_pagewrite(void)
+{
+    int buff_size = 16;
+    char buff[buff_size];
+
+    read_line(buff, buff_size);
+    // read total amount of bytes to be written first
+    uint16_t pagewrite_total_size = atoi(buff);
+
+    read_line(buff, buff_size);
+    // read amount of bytes per line
+    uint16_t pagewrite_block_size = atoi(buff);
+    char block[pagewrite_block_size + 1];
+
+    uint16_t bytes_written = 0;
+
+    i2c_write_start(MB85RC_DEFAULT_ADDRESS, 0);
+
+    while (bytes_written < pagewrite_total_size) {
+        int bytes_read = read_line(block, pagewrite_block_size);
+
+        for (int i = 0; i < bytes_read; i++) {
+            i2c_write(block[i]);
+        }
+        
+        bytes_written += bytes_read;
+    }
+
+    i2c_stop();
+    printf("wrote %d bytes successfully\r\n", bytes_written);
+    USB_Mainloop_Handler();
+}
+
+void handleInput(char c) {
+// WARNING: This uses a busy-wait, thus will block main loop until done
+    const int COMMAND_BUFF_LEN = 16;
+    char command[COMMAND_BUFF_LEN + 1];
+
+    command[0] = c;
+    printf("%c", c);
+    read_line(command + 1, COMMAND_BUFF_LEN);
 
     // echo back the return
     printf("\r\n");
     USB_Mainloop_Handler();
 
-    // buffer is full - ignore input
-    if (i == COMMAND_BUFF_LEN) {
-        printf("Buffer full\r\n");
-        command[COMMAND_BUFF_LEN - 1] = '\r';
-        USB_Mainloop_Handler();
-        return;
-    }
-
-    command[i] = '\0';
-
     if (strlen(command) == 0) {
         return;
     }
 
-    // handle input per ui_stage
-    if (!ui_stage) handleCommand(command);
-    else {
-        // set new goal here
-        mem_location = atoi(command);
-        printf("new address is %d\r\n\n", mem_location);
-        ui_stage = 0;
+    // buffer is full - ignore input
+    if (strlen(command) == COMMAND_BUFF_LEN) {
+        printf("Buffer full\r\n");
+        USB_Mainloop_Handler();
         return;
     }
 
-    return;
+    handler(command);
 }
 
 void handleCommand(char *command) {
@@ -102,11 +131,15 @@ void handleCommand(char *command) {
         case ('r'): {
             // READ COMMAND
             memset(&buffer, 0, 16);
-            if (i2c_readReg(MB85RC_DEFAULT_ADDRESS, mem_location, buffer, 16))
-            printf("ERROR in read\r\n");
-          else
-            for (int i=0;i< 16; i++)
-            printf("addr: 0x%04x-> %c\r\n", (mem_location+i), (char)buffer[i]);
+            if (i2c_readReg(MB85RC_DEFAULT_ADDRESS, mem_location, buffer, 16)) {
+                printf("ERROR in read\r\n");
+            } else {
+                printf("addr 0x%04x ", mem_location);
+                for (int i=0;i< 16; i++) {
+                    printf("%c ", (char) buffer[i]);
+                }
+                printf("\r\n");
+            }
             break;
         }
 
@@ -115,8 +148,9 @@ void handleCommand(char *command) {
         case ('w'): {
             // WRITE COMMAND
             sprintf((char *)buffer, "hello world");
-                if (i2c_writeReg(MB85RC_DEFAULT_ADDRESS, mem_location, buffer, 11))
-                  printf("ERROR in write\r\n");
+            if (i2c_writeReg(MB85RC_DEFAULT_ADDRESS, mem_location, buffer, 11)){
+                printf("ERROR in write\r\n");
+            }
             break;
         }
 
@@ -124,8 +158,15 @@ void handleCommand(char *command) {
         case ('S'):
         case ('s'):
             printf("enter new address: \r\n");
-            ui_stage = 1;
+            USB_Mainloop_Handler();
+            handler = handle_memory_location;
             break;
+
+        case ('p'):
+        case ('P'):
+            printf("pagewrite mode, enter total size and block size\r\n");
+            USB_Mainloop_Handler();
+            execute_pagewrite();
 
         default:
             printf(menuString);
