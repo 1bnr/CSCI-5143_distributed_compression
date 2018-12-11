@@ -221,6 +221,36 @@ uint8_t* i2c_readReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t 
     return buffer;
 }
 
+uint8_t * receive_bytes_from_slave(uint8_t devaddr, uint16_t *length) {
+    // start device connection
+    i2c_init();
+
+    if (i2c_start((devaddr << 1) | I2C_READ)) {
+        printf("Error: readReg::start(devaddr)\r\n");
+    }
+
+    uint8_t one = i2c_read_ack();
+    uint8_t two = i2c_read_ack();
+    uint16_t length2 = (one << 8) | two;
+    uint8_t *buffer = (uint8_t*) malloc(length2);
+    uint8_t data_in;
+    // now read, with acknowledment
+    for (int i = 0; i < length2; i++) {
+      printf("On byte:%d\r\n",i);
+        data_in = i2c_read_ack();
+        printf("With data:%hhx\r\n", data_in);
+        buffer[i] = data_in;
+        printf("Data[%d]=%hhx\r\n",i,buffer[i]);
+    }
+
+    // read last byte without acknowledgment
+    //data[(length - 1)] = i2c_read_nack();
+
+    i2c_stop();
+    *length = length2;
+    return buffer;
+  }
+
 /*************************************************************************
    Issues a repeated start condition and sends address and transfer direction
 
