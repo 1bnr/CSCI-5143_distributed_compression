@@ -9,7 +9,6 @@
 #include <util/twi.h>
 
 #include "lufa.h"
-#include "leds.h"
 #include "i2c_master.h"
 
 #define menuString "\
@@ -25,7 +24,7 @@ void wait_for_start(void) {
 	TWSR = 0x00; // Clears the Status Code Register and all prescalers.
 	TWCR |= (1<<TWEN)|(1<<TWEA); // Enables the TWI Interface.
   //TWCR = 0b01000100;//init address
-  
+
 
   while ((TWCR & (1<<TWINT)) != (1 << TWINT)){
     USB_Mainloop_Handler();

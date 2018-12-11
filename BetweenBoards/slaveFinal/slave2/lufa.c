@@ -9,7 +9,6 @@
 #include <util/twi.h>
 
 #include "lufa.h"
-#include "leds.h"
 #include "i2c_master.h"
 
 #define menuString "\
