@@ -243,10 +243,16 @@ void i2c_stop(void) {
     // wait until stop condition is executed and bus released
     while (TWCR & (1 << TWSTO));
 }/* i2c_stop */
+
+
+
+
+
+
 //****************************************
 int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
     while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
-        //USB_Mainloop_Handler()();
+        USB_Mainloop_Handler();
         //printf("Waiting\r\n");
         // This is just a busy wait for the master to send the start signal
         // when the TWINT is set in TWCR it means there is a valid value in
@@ -260,7 +266,7 @@ int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
         TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
 
         while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
-            //USB_Mainloop_Handler()();
+            USB_Mainloop_Handler();
             printf("Waiting for master to receive byte\r\n");
         }
     } else {
@@ -274,7 +280,7 @@ int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
         TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
 
         while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
-            //USB_Mainloop_Handler()();
+            USB_Mainloop_Handler();
             printf("Waiting for master to receive byte\r\n");
         }
     } else {
@@ -295,7 +301,7 @@ int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
             printf("sending byte:%d\r\n", i);
 
             while ((TWCR & (1 << TWINT)) != (1 << TWINT))
-                //USB_Mainloop_Handler()();
+                USB_Mainloop_Handler();
 
             if (TWSR == 0xB8) {
                 // This means that the last byte was received and is ready to send the next
@@ -314,7 +320,7 @@ int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
         } // end of for loop
 
         while ((TWCR & (1 << TWINT)) != (1 << TWINT))
-            //USB_Mainloop_Handler()();
+            USB_Mainloop_Handler();
 
         if (TWSR == 0xB8) {
             // This means that the last byte was received and is ready to send the next
@@ -338,7 +344,7 @@ int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
             TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
             return 0;
         } else {
-            printf("somthing went wrong with last byte sent\r\n");
+          printf("somthing went wrong with last byte sent:hhx\r\n",TWSR);
             return -1;
         }
     } else {
@@ -353,7 +359,7 @@ int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
 uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
     // Wait for the start signal
     while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
-        //USB_Mainloop_Handler()();
+        USB_Mainloop_Handler();
         printf("Waiting\r\n");
         // This is just a busy wait for the master to send the start signal
         // when the TWINT is set in TWCR it means there is a valid value in
@@ -365,9 +371,14 @@ uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
         TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
 
         while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
-            //USB_Mainloop_Handler()();
+            USB_Mainloop_Handler();
             printf("Waiting for byte 1\r\n");
         }
+    } else if(TWSR != 0x80) {
+      printf("Error: not in slave receiver mode:%hhx\r\n",TWSR);
+      return (uint8_t*) malloc(0); 
+    }
+
         uint8_t one = 0;
         uint8_t two = 0;
 
@@ -384,7 +395,7 @@ uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
 
         // Now wait for byte two
         while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
-            //USB_Mainloop_Handler()();
+            USB_Mainloop_Handler();
             printf("Waiting for byte 2\r\n");
         }
 
@@ -399,13 +410,13 @@ uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
         // Let master know that we got the bytes
         TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN); // sending ack
         *buffer_length = (one << 8) | two;
-        uint8_t * buffer = (uint8_t *) malloc(*buffer_length);
+        uint8_t *buffer = (uint8_t *) malloc(*buffer_length);
         int i;
         printf("The length of the buffer to get is %u",*buffer_length);
         for (i = 0; i < *buffer_length; i++) {
             // Wait for the byte to be snt
             while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
-                //USB_Mainloop_Handler()();
+                USB_Mainloop_Handler();
                 printf("Waiting for data bytes\r\n");
             }
             if (TWSR == 0x80) {
@@ -420,11 +431,12 @@ uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
         }
         // wait for stop signal
         while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
-            //USB_Mainloop_Handler()();
+            USB_Mainloop_Handler();
             printf("Waiting for stop signal\r\n");
         }
         if (TWSR == 0xA0) {
           printf("transmission from master successful\r\n");
+          TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN); // sending ack
           return buffer;
         } else {
           printf("Error: stop not received\r\n");
@@ -432,9 +444,5 @@ uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
           free(buffer);
           buffer = (uint8_t *) malloc(0);
         }
-    } else {
-      printf("Error: not in slave receiver mode:%hhx\r\n",TWSR);
-      return (uint8_t*) malloc(0);
-    }
 }
 //******************************

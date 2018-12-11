@@ -1,4 +1,4 @@
-PORT=/dev/ttyACM1
+PORT=/dev/ttyACM2
 
 
 

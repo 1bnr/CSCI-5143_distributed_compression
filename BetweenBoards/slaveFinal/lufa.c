@@ -9,6 +9,7 @@
 #include <util/twi.h>
 
 #include "lufa.h"
+#include "leds.h"
 #include "i2c_master.h"
 
 #define menuString "\
@@ -24,7 +25,7 @@ extern uint8_t* buffer;
 
 void slave_setup() {
   // set the addr to 0x51
-  TWAR = (0x51<<1);
+  TWAR = (0x52<<1);
   // Set the clock frequency to 100khz
   TWBR = ((((16000000UL / F_SCL) / 1) - 16) / 2);
 	TWCR |= (1<<TWEN)|(1<<TWEA); // Enables the TWI Interface.
@@ -201,7 +202,6 @@ uint16_t receive_bytes(uint8_t *buffer) {
   }
 
 }
-
 //extern volatile uint8_t in_ui_mode;
 volatile uint8_t ui_stage = 0;
 volatile uint8_t mem_location = 0x0;
@@ -287,64 +287,81 @@ void handleCommand(char *command) {
     switch (command[0]) {
         case ('R'):
         case ('r'): {
-            // READ COMMAND
-            memset(&buffer, 0, 16);
-            if (i2c_readReg(0x51, mem_location, buffer, 11))
-            printf("ERROR in read\r\n");
-          else
-            for (int i=0;i< 16; i++)
-            printf("addr: 0x%04x-> %c\r\n", (mem_location+i), (char)buffer[i]);
-            break;
+          slave_setup();
+          // This should receive a byte buffer from master
+          uint16_t * buffer_length = (uint16_t *) malloc(sizeof(uint16_t));
+          *buffer_length = 0;
+
+          uint8_t * buffer = receive_bytes_from_master(buffer_length);
+
+          if(*buffer_length ==0) {
+            printf("The receiving from master failed\r\n");
+          } else {
+            printf("The receiving from master succeeded\r\nprintfing the buffer received\r\n");
+            for(int i =0; i < *buffer_length; i++) {
+              printf("Byte[%d]=%hhx\r\n",i,buffer[i]);
+            }
+          }
+          break;
         }
 
         // W/w write
         case ('W'):
         case ('w'): {
-            // WRITE COMMAND
-            sprintf((char *)buffer, "hello world");
-                if (i2c_writeReg(0x51, mem_location, buffer, 11))
-                  printf("ERROR in write\r\n");
+          slave_setup();
+          uint8_t* buffer;
+          uint16_t* buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
+          *buffer_length = 5;
+          buffer = (uint8_t *)malloc(sizeof(uint8_t) * 5);
+          buffer[0]='h';
+          buffer[1]='e';
+          buffer[2]='l';
+          buffer[3]='l';
+          buffer[4]='o';
+          printf("Buffer0:%hhx\r\n",buffer[0]);
+          printf("Buffer1:%hhx\r\n",buffer[1]);
+          printf("Buffer2:%hhx\r\n",buffer[2]);
+          printf("Buffer3:%hhx\r\n",buffer[3]);
+          printf("Buffer4:%hhx\r\n",buffer[4]);
+          int result = send_bytes_to_master(buffer,buffer_length);
+          if(result != 0) {
+            printf("The sending to master failed \r\n");
+          } else {
+            printf("The sending of the buffer to master succedded\r\n");
+          }
+
             break;
         }
 
-        // S/s: Set read/write address
-        case ('S'):
-        case ('s'):
-            printf("enter new address: \r\n");
-            ui_stage = 1;
-            break;
     case ('Z'):
     case ('z'):
-      printf("waiting\r\n");
-      uint8_t* buffer;
-      buffer = (uint8_t *)malloc(sizeof(uint8_t) * 5);
-      buffer[0]='h';
-      buffer[1]='e';
-      buffer[2]='l';
-      buffer[3]='l';
-      buffer[4]='o';
-      printf("Buffer0:%hhx\r\n",buffer[0]);
-      printf("Buffer1:%hhx\r\n",buffer[1]);
-      printf("Buffer2:%hhx\r\n",buffer[2]);
-      printf("Buffer3:%hhx\r\n",buffer[3]);
-      printf("Buffer4:%hhx\r\n",buffer[4]);
       slave_setup();
-      int received_bytes = send_bytes((uint16_t)5,buffer);
-      if(received_bytes == -1) {
-        printf("Send_bytes returned -1\r\n");
-      } else {
-        printf("Bytes received:%d\r\n",received_bytes );
-      }
-      break;
-    case('T'):
-    case('t'):
-      //set the ready pin
-      PORTD |= (1<<PORTD6);
-      // First send the bytes we have
-      // Because this is the first there are no bytes
+      printf("Receiving buffer from master\r\n");
+      uint16_t * buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
+      *buffer_length = 0;
+      uint8_t *buffer;
 
-      send_bytes(bytes_in_buffer,buffer);
-        default:
+      buffer = receive_bytes_from_master(buffer_length);
+      if(*buffer_length != 0) {
+        printf("Buffer length:%u\r\n",*buffer_length);
+        for(int j=0; j <*buffer_length; j++) {
+          printf("buffer[%d]=%hhx\r\n",j,buffer[j]);
+        }
+      } else {
+        printf("Error receiving buffer from master\r\n");
+      }
+
+      // Do the transform
+      printf("Transform done");
+      int result = send_bytes_to_master(buffer, buffer_length);
+      if(result == 0) {
+        printf("Bytes send correctly\r\n");
+      } else {
+        printf("error sending bytes to master\r\n");
+      }
+
+      break;
+       default:
             printf(menuString);
     }
 

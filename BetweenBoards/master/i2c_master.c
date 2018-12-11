@@ -235,7 +235,7 @@ uint8_t * receive_bytes_from_slave(uint8_t devaddr, uint16_t *length) {
     uint8_t *buffer = (uint8_t*) malloc(length2);
     uint8_t data_in;
     // now read, with acknowledment
-    for (int i = 0; i < length2; i++) {
+    for (int i = 0; i < length2-1; i++) {
       printf("On byte:%d\r\n",i);
         data_in = i2c_read_ack();
         printf("With data:%hhx\r\n", data_in);
@@ -244,7 +244,7 @@ uint8_t * receive_bytes_from_slave(uint8_t devaddr, uint16_t *length) {
     }
 
     // read last byte without acknowledgment
-    //data[(length - 1)] = i2c_read_nack();
+    buffer[(length2 - 1)] = i2c_read_ack();
 
     i2c_stop();
     *length = length2;

@@ -9,7 +9,9 @@
 #include <util/twi.h>
 
 #include "lufa.h"
+#include "leds.h"
 #include "i2c_master.h"
+#include "common.h"
 
 #define menuString "\
 R/r: read\r\n\
@@ -24,7 +26,7 @@ void wait_for_start(void) {
 	TWSR = 0x00; // Clears the Status Code Register and all prescalers.
 	TWCR |= (1<<TWEN)|(1<<TWEA); // Enables the TWI Interface.
   //TWCR = 0b01000100;//init address
-
+  
 
   while ((TWCR & (1<<TWINT)) != (1 << TWINT)){
     USB_Mainloop_Handler();
@@ -124,39 +126,100 @@ void handleCommand(char *command) {
         case ('R'):
         case ('r'): {
             // READ COMMAND
-          uint16_t *read = (uint16_t*)malloc(sizeof(uint16_t));
-          *read = 0;
-          for (int i=0;i< 5; i++) {
-            printf("addr: %hhx\r\n", buffer[i]);
+          // This should receive bytes
+          uint8_t* buffer;
+          uint16_t * buffer_length = (uint16_t *) malloc(sizeof(uint16_t));
+          *buffer_length = 0;
+
+          buffer = receive_bytes_from_slave(0x51,buffer_length);
+          if(*buffer_length != 0) {
+            printf("The receiving from slave succeeded\r\n");
+          } else {
+            printf("The receiving failed\r\n");
           }
-          uint8_t * buffer = i2c_readReg(0x51, mem_location, buffer, read);
-          printf("length returned%u\r\n",*read);
-            for (int i=0;i< *read; i++) {
-              printf("addr: %hhx\r\n", buffer[i]);
-            }
-            break;
+          break;
         }
 
-        // W/w write
-        case ('W'):
-        case ('w'): {
-            // WRITE COMMAND
-            sprintf((char *)buffer, "hello world");
-                if (i2c_writeReg(0x51, mem_location, buffer, 11))
-                  printf("ERROR in write\r\n");
-            break;
-        }
+          // W/w write
+    case ('W'):
+    case ('w'): {
+      // This should send the bytes to the slave device
+      uint8_t* buffer;
+      uint16_t* buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
+      *buffer_length = 5;
+      buffer = (uint8_t *)malloc(sizeof(uint8_t) * 5);
+      buffer[0]='h';
+      buffer[1]='e';
+      buffer[2]='l';
+      buffer[3]='l';
+      buffer[4]='o';
+      printf("Buffer0:%hhx\r\n",buffer[0]);
+      printf("Buffer1:%hhx\r\n",buffer[1]);
+      printf("Buffer2:%hhx\r\n",buffer[2]);
+      printf("Buffer3:%hhx\r\n",buffer[3]);
+      printf("Buffer4:%hhx\r\n",buffer[4]);
+      int result = send_bytes_to_slave(0x51,buffer, buffer_length);
+      if(result != 0) {
+        printf("Failed to send the data\r\n");
+      } else {
+        printf("The transfer suceeded\r\n");
+      }
+      break;
+    }
 
-        // S/s: Set read/write address
-        case ('S'):
-        case ('s'):
-            printf("enter new address: \r\n");
-            ui_stage = 1;
-            break;
     case ('Z'):
-    case ('z'):
-      printf("waiting\r\n");
-      wait_for_start();
+    case ('z'): {
+      int board_num = 1;
+      uint8_t slave_addr = 0x51;
+      uint8_t* buffer;
+      uint16_t* buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
+      *buffer_length = 6;
+      for(int k =0; k < 2; k++) {
+        printf("Sending to board 1\r\n");
+        USB_Mainloop_Handler();
+                buffer = (uint8_t *)malloc(sizeof(uint8_t) * 6);
+        buffer[0]='b';
+        buffer[1]='u';
+        buffer[2]='f';
+        buffer[3]='f';
+        buffer[4]='e';
+        buffer[5]='r';
+        int result = send_bytes_to_slave(slave_addr,buffer, buffer_length);
+        if(result != 0) {
+          printf("Error sending to board 1\r\n");
+          break;
+        }
+
+        free(buffer);
+        *buffer_length = 0;
+       if(board_num == 1) {
+          board_num++;
+          slave_addr = 0x52;
+        }
+    }
+      slave_addr=0x51; 
+      _delay_ms(1000);
+      for(int k =0; k <2; k++) {
+        // Waiting for board 1
+        printf("receiving from board 1\r\n");
+        buffer = receive_bytes_from_slave(slave_addr,buffer_length);
+
+        if(*buffer_length != 0) {
+          printf("Received bytes from slave\r\n");
+          for(int i = 0; i < *buffer_length; i++) {
+            printf("buffer[%u]=%hhx\r\n",i,buffer[i]);
+          }
+        } else {
+          printf("Failed to receive bytes from slave");
+        }
+
+        free(buffer);
+        if(board_num == 1) {
+          board_num++;
+          slave_addr = 0x52;
+        }
+      }
+    } 
         default:
             printf(menuString);
     }

@@ -39,7 +39,7 @@ uint8_t i2c_start(uint8_t address) {
 
     // wail until transmission completed and ACK/NACK has been received
     while (!(TWCR & (1 << TWINT))) {
-      //USB_Mainloop_Handler()();
+      //USB_Mainloop_Handler();
       printf("Waiting for ack from the device\r\n");
     }
 
@@ -113,8 +113,8 @@ uint8_t i2c_write(uint8_t data) {
 
     // wait until transmission completed
     while (!(TWCR & (1 << TWINT))) {
-      //USB_Mainloop_Handler()();
-      printf("Waiting for write to finish sending\r\n");
+      //USB_Mainloop_Handler();
+      //printf("Waiting for write to finish sending\r\n");
     }
 
     // check value of TWI Status Register. Mask prescaler bits
@@ -183,14 +183,13 @@ uint8_t i2c_writeReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t 
     i2c_write('o');
 
     while(1) {
-      //USB_Mainloop_Handler()();
+      //USB_Mainloop_Handler();
       printf("Start Signal Sent\r\n");
     }
     i2c_stop();
 
     return 0;
 }
-
 
 uint8_t* i2c_readReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t *length) {
     // start device connection
@@ -221,29 +220,6 @@ uint8_t* i2c_readReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t 
     *length = length2;
     return buffer;
 }
-/*************************************************************************
-   Issues a repeated start condition and sends address and transfer direction
-
-   Input:   address and transfer direction of I2C device
-
-   Return:  0 device accessible
-          1 failed to access device
-*************************************************************************/
-unsigned char i2c_rep_start(unsigned char address) {
-    return i2c_start(address);
-}/* i2c_rep_start */
-
-/*************************************************************************
-   Terminates the data transfer and releases the I2C bus
-*************************************************************************/
-void i2c_stop(void) {
-    /* send stop condition */
-    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
-
-    // wait until stop condition is executed and bus released
-    while (TWCR & (1 << TWSTO));
-}/* i2c_stop */
-
 
 uint8_t * receive_bytes_from_slave(uint8_t devaddr, uint16_t *length) {
     // start device connection
@@ -259,7 +235,7 @@ uint8_t * receive_bytes_from_slave(uint8_t devaddr, uint16_t *length) {
     uint8_t *buffer = (uint8_t*) malloc(length2);
     uint8_t data_in;
     // now read, with acknowledment
-    for (int i = 0; i < length2; i++) {
+    for (int i = 0; i < length2-1; i++) {
       printf("On byte:%d\r\n",i);
         data_in = i2c_read_ack();
         printf("With data:%hhx\r\n", data_in);
@@ -268,7 +244,7 @@ uint8_t * receive_bytes_from_slave(uint8_t devaddr, uint16_t *length) {
     }
 
     // read last byte without acknowledgment
-    //data[(length - 1)] = i2c_read_nack();
+    buffer[(length2 - 1)] = i2c_read_ack();
 
     i2c_stop();
     *length = length2;
@@ -299,3 +275,26 @@ uint8_t * receive_bytes_from_slave(uint8_t devaddr, uint16_t *length) {
 
       return 0;
   }
+
+/*************************************************************************
+   Issues a repeated start condition and sends address and transfer direction
+
+   Input:   address and transfer direction of I2C device
+
+   Return:  0 device accessible
+          1 failed to access device
+*************************************************************************/
+unsigned char i2c_rep_start(unsigned char address) {
+    return i2c_start(address);
+}/* i2c_rep_start */
+
+/*************************************************************************
+   Terminates the data transfer and releases the I2C bus
+*************************************************************************/
+void i2c_stop(void) {
+    /* send stop condition */
+    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
+
+    // wait until stop condition is executed and bus released
+    while (TWCR & (1 << TWSTO));
+}/* i2c_stop */
