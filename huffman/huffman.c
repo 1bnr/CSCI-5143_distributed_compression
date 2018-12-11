@@ -507,7 +507,6 @@ void huffman_inflate(uint8_t *data, uint16_t data_size, uint8_t *out_data)
 
     uint16_t deserialized_tree_bytes_read;
     node_t *tree = deserialize_tree(&huffman_memory, data + 3, &deserialized_tree_bytes_read);
-    bst_print_dot("decompressed", tree, stdout);
 
     uint16_t encoding_table_size = tree_count_leaves(tree);
     encoding_info_t encoding_table[encoding_table_size];
