@@ -202,7 +202,201 @@ uint16_t receive_bytes(uint8_t *buffer) {
   }
 
 }
+//****************************************
+int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
+    while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+        USB_Mainloop_Handler();
+        //printf("Waiting\r\n");
+        // This is just a busy wait for the master to send the start signal
+        // when the TWINT is set in TWCR it means there is a valid value in
+        // the TWSR
+    }
+    // send the ack back
 
+    // send master the number of bytes to read
+    if (TWSR == 0xA8) {
+        TWDR = ((*bytes_to_send) >> 8);
+        TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
+
+        while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+            USB_Mainloop_Handler();
+            printf("Waiting for master to receive byte\r\n");
+        }
+    } else {
+        printf("Failed to send first byte TWSR:%hhx\r\n", TWSR);
+        return -1;
+    }
+
+    // send the second byte
+    if (TWSR == 0xB8) {
+        TWDR = *bytes_to_send;
+        TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
+
+        while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+            USB_Mainloop_Handler();
+            printf("Waiting for master to receive byte\r\n");
+        }
+    } else {
+        printf("Failed to send second byte TWSR:%hhx\r\n", TWSR);
+        return -1;
+    }
+
+    if (TWSR == 0xB8) {
+        // This means that it is in the correct state
+        // send back the ack
+        TWDR = buffer[0];
+        printf("SendingFirstBytes:%hhx\r\n", TWDR);
+        printf("SendingFirstBytes:%hhx\r\n", buffer[0]);
+        TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
+        int i;
+
+        for (i = 1; i < bytes_to_send - 1; i++) {
+            printf("sending byte:%d\r\n", i);
+
+            while ((TWCR & (1 << TWINT)) != (1 << TWINT))
+                USB_Mainloop_Handler();
+
+            if (TWSR == 0xB8) {
+                // This means that the last byte was received and is ready to send the next
+                // load TWDR
+                TWDR = buffer[i];
+                printf("SendingNextBytes:%hhx\r\n", TWDR);
+                printf("SendingNextBytes:%hhx\r\n", buffer[i]);
+                // Send the signal to master to receive the next byte
+                TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
+            } else {
+                // This is in a state I don't understand
+                printf("Error with sending a byte state\r\n");
+                printf("TWSR:%hhx\r\n", TWSR);
+                return -1;
+            }
+        } // end of for loop
+
+        while ((TWCR & (1 << TWINT)) != (1 << TWINT))
+            USB_Mainloop_Handler();
+
+        if (TWSR == 0xB8) {
+            // This means that the last byte was received and is ready to send the next
+            // load TWDR
+            TWDR = buffer[i];
+            printf("SendingNextBytes:%hhx\r\n", TWDR);
+            printf("SendingNextBytes:%hhx\r\n", buffer[i]);
+            // Send the signal to master to receive the next byte
+            TWCR = (1 << TWINT) | (1 << TWEN);
+        } else {
+            // This is in a state I don't understand
+            printf("Error with sending a byte state\r\n");
+            printf("TWSR:%hhx\r\n", TWSR);
+            return -1;
+        }
+
+        while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+        }
+
+        if (TWSR == 0xC8) {
+            TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
+            return 0;
+        } else {
+            printf("somthing went wrong with last byte sent\r\n");
+            return -1;
+        }
+    } else {
+        // This was in a state that is not sending so return -1 to indicate
+        // and error;
+        printf("Error with first state\r\n");
+        printf("TWSR:%hhx\r\n", TWSR);
+        return -1;
+    }
+}
+
+uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
+    // Wait for the start signal
+    while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+        USB_Mainloop_Handler();
+        printf("Waiting\r\n");
+        // This is just a busy wait for the master to send the start signal
+        // when the TWINT is set in TWCR it means there is a valid value in
+        // the TWSR
+    }
+
+    if (TWSR == 0x60) {
+        // Send back the ack by setting twint and tew
+        TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
+
+        while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+            USB_Mainloop_Handler();
+            printf("Waiting for byte 1\r\n");
+        }
+        uint8_t one = 0;
+        uint8_t two = 0;
+
+        if (TWSR == 0x80) {
+            // This means that there is a byte to read in the twdr
+            one = TWDR;
+        } else {
+          printf("Error: first byte not received correctly.\r\n" );
+          return (uint8_t*) malloc(0);
+        }
+
+        // Now send back the ack
+        TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
+
+        // Now wait for byte two
+        while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+            USB_Mainloop_Handler();
+            printf("Waiting for byte 2\r\n");
+        }
+
+        // second byte
+        if (TWSR == 0x80) {
+            two = TWDR;
+        } else {
+          printf("Error: second byte not received correctly.\r\n" );
+          return (uint8_t*) malloc(0);
+        }
+
+        // Let master know that we got the bytes
+        TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN); // sending ack
+        *buffer_length = (one << 8) | two;
+        buffer = (uint8_t *) malloc(*buffer_length);
+        int i;
+
+        for (i = 0; i < buffer_length; i++) {
+            // Wait for the byte to be snt
+            while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+                USB_Mainloop_Handler();
+                printf("Waiting for data bytes\r\n");
+            }
+            if (TWSR == 0x80) {
+              buffer[i] =  TWDR;
+              TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN); // sending ack
+            } else {
+              *buffer_length = 0;
+              printf("Error receiving data bytes\r\n");
+              free(buffer);
+              buffer = (uint8_t *) malloc(0);
+            }
+        }
+        // wait for stop signal
+        while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
+            USB_Mainloop_Handler();
+            printf("Waiting for stop signal\r\n");
+        }
+        if (TWSR == 0xA0) {
+          printf("transmission from master successful\r\n");
+          return buffer;
+        } else {
+          printf("Error: stop not received\r\n");
+          *buffer_length = 0;
+          free(buffer);
+          buffer = (uint8_t *) malloc(0);
+        }
+    } else {
+      printf("Error: not in slave receiver mode\r\n");
+      return (uint8_t*) malloc(0);
+    }
+}
+//******************************
 //extern volatile uint8_t in_ui_mode;
 volatile uint8_t ui_stage = 0;
 volatile uint8_t mem_location = 0x0;
