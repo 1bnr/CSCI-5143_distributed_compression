@@ -32,7 +32,7 @@
 #define wr_mode() CLEAR_BIT(write_control, write_pin)
 
 
-
+#define slaveaddr = 0x78;
 // Uncomment this to print out debugging statements.
 //#define DEBUG 1
 
@@ -95,6 +95,16 @@ void setup_slave_io() {
   PORTD &= ~(1<<PORTD6);
 }
 
+// This is the buffer that is received/sent from/to the master
+uint8_t* byte_buffer;
+uint16_t* buffer_length;
+
+void setup_salve_twi() {
+  TWAR = (slaveaddr<<1);
+  TWCR = (1<<TWEN) | (1<<TWEA);
+  byte_buffer = (uint8_t*)malloc(0);
+  buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
+}
 
 /****************************************************************************
    MAIN
@@ -106,14 +116,35 @@ int main(void) {
     initialize_system(); // initialization of system
     ms_ticks = 0; // initialize 'tick' counter to 0
     sei();
+    setup_slave_io();
+    setup_slave_twi();
+    while(1) {
+      // Set the flag that the slave is ready
+      // That flag is set on PORTD6
+      PORTD |= (1<<PORTD6);
 
-    //*******         THE CYCLIC CONTROL LOOP            **********//
-    //*************************************************************//
-    for (;;) {
-      USB_Mainloop_Handler();
-      if ((c = fgetc(stdin)) != EOF) {
-                handleInput(c);
+
+      // Send the buffer to master
+      int result = send_to_master(byte_buffer,buffer_length);
+      if(result == -1) {
+        // the buffer was not sent to the master successfully so it should
+        // try again at the start of the loop
+        continue;
       }
+
+      // Now that it was sent to master we don't need the buffer
+      free(byte_buffer);
+      *buffer_length = 0;
+
+
+      byte_buffer = receive_bytes_from_master(buffer_length);
+      if(buffer_length == 0) {
+        free(byte_buffer);
+        // unable to receive bytes from master so we should just try again
+        continue;
+      }
+
+      // Do work with the new buffer
     }
 }
 

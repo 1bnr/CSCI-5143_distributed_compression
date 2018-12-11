@@ -31,17 +31,13 @@ uint8_t i2c_start(uint8_t address) {
         printf("Error: start condition transmission did not succeed\r\n");
         return 1;
     }
-    printf("Start sent\r\n");
+
     // send device address
     TWDR = address;
-    printf("AddrSent:%hhx\r\n",TWDR);
     TWCR = (1 << TWINT) | (1 << TWEN);
 
     // wail until transmission completed and ACK/NACK has been received
-    while (!(TWCR & (1 << TWINT))) {
-      USB_Mainloop_Handler();
-      printf("Waiting for ack from the device\r\n");
-    }
+    while (!(TWCR & (1 << TWINT)));
 
     // check value of TWI Status Register. Mask prescaler bits.
     if ( ((TWSR & 0xF8) != TW_MT_SLA_ACK) && ((TWSR & 0xF8) != TW_MR_SLA_ACK) ) {
@@ -112,10 +108,7 @@ uint8_t i2c_write(uint8_t data) {
     TWCR = (1 << TWINT) | (1 << TWEN);
 
     // wait until transmission completed
-    while (!(TWCR & (1 << TWINT))) {
-      USB_Mainloop_Handler();
-      printf("Waiting for write to finish sending\r\n");
-    }
+    while (!(TWCR & (1 << TWINT)));
 
     // check value of TWI Status Register. Mask prescaler bits
 
@@ -166,59 +159,66 @@ uint8_t i2c_receive(uint8_t address, uint8_t *data, uint16_t length) {
 uint8_t i2c_writeReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t length) {
     i2c_init();
 
-    if (i2c_start((devaddr << 1) | I2C_READ)) {
+    if (i2c_start((devaddr << 1) | I2C_WRITE)) {
         printf("i2c_start error\r\n");
         return 1;
     }
 
+    // wait for end of transmission
+    while (!(TWCR & (1 << TWINT)) );
+    // first write is the destinatino address
+    i2c_write(regaddr >> 8);
+    i2c_write(regaddr & 0xFF);
+    printf("address sent\r\n");
 
-    uint8_t val =0;
-    uint8_t val2 = 5;
-    i2c_write(val);
-    i2c_write(val2);
-    i2c_write('h');
-    i2c_write('e');
-    i2c_write('l');
-    i2c_write('l');
-    i2c_write('o');
+    // now we can start writting data
+    int len = strlen((char *)data);
+    printf("%s: len: %d\r\n", (char *)data, len);
 
-    while(1) {
-      USB_Mainloop_Handler();
-      printf("Start Signal Sent\r\n");
+    for (uint16_t i = 0; i < len; i++) {
+        printf("writing data[%d]: %c\r\n", i, (char)data[i]);
+
+        if (i2c_write(data[i])) {
+            printf("i2c_write error\r\n");
+            return 1;
+        }
     }
+
     i2c_stop();
 
     return 0;
 }
 
-uint8_t* i2c_readReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t *length) {
+uint8_t i2c_readReg(uint8_t devaddr, uint16_t regaddr, uint8_t *data, uint16_t length) {
     // start device connection
     i2c_init();
 
-    if (i2c_start((devaddr << 1) | I2C_READ)) {
+    if (i2c_start((devaddr << 1)) | I2C_WRITE) {
         printf("Error: readReg::start(devaddr)\r\n");
+        return 1;
     }
 
-    uint8_t one = i2c_read_ack();
-    uint8_t two = i2c_read_ack();
-    uint16_t length2 = (one << 8) | two;
-    uint8_t *buffer = (uint8_t*) malloc(length2);
-    uint8_t data_in;
+    // write the source address
+    i2c_write(regaddr >> 8);
+    i2c_write(regaddr & 0xFF);
+
+    // start again in read mode
+    if (i2c_start((devaddr << 1) | I2C_READ)) {
+        printf("Error in readingReg::start(devaddr | 0x%02x)\r\n", I2C_READ);
+        return 1;
+    }
+
     // now read, with acknowledment
-    for (int i = 0; i < length2; i++) {
-      printf("On byte:%d\r\n",i);
-        data_in = i2c_read_ack();
-        printf("With data:%hhx\r\n", data_in);
-        buffer[i] = data_in;
-        printf("Data[%d]=%hhx\r\n",i,buffer[i]);
+    for (uint16_t i = 0; i < (length - 1); i++) {
+        data[i] = i2c_read_ack();
     }
 
     // read last byte without acknowledgment
-    //data[(length - 1)] = i2c_read_nack();
+    data[(length - 1)] = i2c_read_nack();
 
-    //i2c_stop();
-    *length = length2;
-    return buffer;
+    i2c_stop();
+
+    return 0;
 }
 
 /*************************************************************************

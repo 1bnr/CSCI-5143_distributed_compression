@@ -31,6 +31,8 @@
 #define ro_mode() SET_BIT(write_control, write_pin)
 #define wr_mode() CLEAR_BIT(write_control, write_pin)
 
+#define slave1addr 0x78;
+#define slave2addr 0x79;
 
 
 // Uncomment this to print out debugging statements.
@@ -42,6 +44,10 @@ volatile uint64_t ms_ticks = 0;
 // mutex access to ms_ticks
 volatile uint8_t in_ui_mode = 0;
 
+uint16_t* bytes_received;
+uint16_t blocks = 5;
+uint16_t blocks_sent = 0;
+uint16_t block_size = 256;
 
 /****************************************************************************
    ms timer using TIMER0 (TIMSK0)
@@ -52,14 +58,6 @@ void setupMStimer(void) {
     OCR0A = 249;
     TIMSK0 |= (1 << OCIE0A);
 }
-
-
-uint16_t bytes_in_buffer;
-uint8_t* buffer;
-
-
-
-
 
 void initialize_fram() {
      // initialize power supply portD pin4 astar pin 4
@@ -76,8 +74,16 @@ void initialize_fram() {
     // sda PD1 (astar 2)
     // SCL PD0 (astar 3)
     i2c_init();     // initialize I2C library
-
 }
+
+
+void setup_slave_polling() {
+  // Slave one B5 A*9
+  // Slave two B6 A*10
+  DDRB &= ~(1<<DDB5);
+  DDRB &= ~(1<<DDB6);
+}
+
 /****************************************************************************
    ALL INITIALIZATION
 ****************************************************************************/
@@ -88,13 +94,6 @@ void initialize_system(void) {
     setupMStimer(); // the ms_ticks timer0
 }
 
-void setup_slave_io() {
-  // PORTD 6 is the ready pin
-  DDRD |= (1<<DDD6);
-  // Set the pin to not ready
-  PORTD &= ~(1<<PORTD6);
-}
-
 
 /****************************************************************************
    MAIN
@@ -102,19 +101,58 @@ void setup_slave_io() {
 char c;
 int main(void) {
 
+
     //  USBCON = 0;
+  bytes_received = (uint16_t *)malloc(sizeof(uint16_t));
+  *bytes_received = 0;
     initialize_system(); // initialization of system
     ms_ticks = 0; // initialize 'tick' counter to 0
     sei();
+    // it needs to read in all of the data
+    // and send it to the ram chip.  this was done by pieter
+    setup_slave_polling();
+    uint8_t curr_addr = 0x00;
+    // While there is more data to process
+    while(blocks_sent < blocks) {
+      // First check if slave1 is available to process
+      if ((PORTB & (1<<PORTB5)) == (1<<PORTB5)) {
+        curr_addr = slave1addr1;
+      } else if ((PORTB & (1<<PORTB5)) == (1<<PORTB5)) {
+        curr_addr = slave1addr2;
+      } else {
+        curr_addr = 0x00;
+      }
 
-    //*******         THE CYCLIC CONTROL LOOP            **********//
-    //*************************************************************//
-    for (;;) {
-      USB_Mainloop_Handler();
-      if ((c = fgetc(stdin)) != EOF) {
-                handleInput(c);
+      if(curr_addr != 0x00) {
+        // This means that one of the boards was ready
+        // First receive the bytes from the board specified by curr_addr
+        *bytes_received = 0;
+        uint8_t* buffer = receive_bytes(curr_addr,bytes_received);
+
+        if(*bytes_received == 0) {
+          // This means that the slave has not received any data and so we don't save this result
+          free(buffer);
+        } else {
+          // send result somewhere probably to a second ram chip
+          free(buffer);
+        }
+        // Get the memory location to send the board equal to blocks_sent
+        uint16_t init_mem = blocks_sent * block_size;
+        uint8_t *buffer = read_from_ram(rammaddr,init_mem, block_size);
+
+        int result = send_bytes(curraddr,buffer,block_size);
+        if(result != -1) {
+          free(buffer);
+          blocks_sent++;
+        } else {
+          curraddr=0x00;
+          free(buffer);
+        }
       }
     }
+
+    // Now all the data has been sent and received so send it back to the computer
+
 }
 
 /****************************************************************************
