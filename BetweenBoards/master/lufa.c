@@ -125,26 +125,44 @@ void handleCommand(char *command) {
         case ('R'):
         case ('r'): {
             // READ COMMAND
-          uint16_t *read = (uint16_t*)malloc(sizeof(uint16_t));
-          *read = 0;
-          for (int i=0;i< 5; i++) {
-            printf("addr: %hhx\r\n", buffer[i]);
+          // This should receive bytes
+          uint8_t* buffer;
+          uint16_t * buffer_length = (uint16_t *) malloc(sizeof(uint16_t));
+          *buffer_length = 0;
+
+          buffer = receive_bytes_from_slave(0x51,buffer_length);
+          if(*buffer_length != 0) {
+            printf("Youre god damn right I forgot a message\r\n");
+          } else {
+            printf("This class sucks\r\n");
           }
-          uint8_t * buffer = i2c_readReg(0x51, mem_location, buffer, read);
-          printf("length returned%u\r\n",*read);
-            for (int i=0;i< *read; i++) {
-              printf("addr: %hhx\r\n", buffer[i]);
-            }
             break;
         }
 
         // W/w write
         case ('W'):
         case ('w'): {
-            // WRITE COMMAND
-            sprintf((char *)buffer, "hello world");
-                if (i2c_writeReg(0x51, mem_location, buffer, 11))
-                  printf("ERROR in write\r\n");
+          // This should send the bytes to the slave device
+          uint8_t* buffer;
+          uint16_t* buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
+          *buffer_length = 5;
+          buffer = (uint8_t *)malloc(sizeof(uint8_t) * 5);
+          buffer[0]='h';
+          buffer[1]='e';
+          buffer[2]='l';
+          buffer[3]='l';
+          buffer[4]='o';
+          printf("Buffer0:%hhx\r\n",buffer[0]);
+          printf("Buffer1:%hhx\r\n",buffer[1]);
+          printf("Buffer2:%hhx\r\n",buffer[2]);
+          printf("Buffer3:%hhx\r\n",buffer[3]);
+          printf("Buffer4:%hhx\r\n",buffer[4]);
+          int result = send_bytes_to_slave(0x51,buffer, buffer_length);
+        if(result != 0) {
+          printf("Now some babies need punchin'\r\n");
+        } else {
+          printf("WE FUCKIN DID BOIS\r\n");
+        }
             break;
         }
 

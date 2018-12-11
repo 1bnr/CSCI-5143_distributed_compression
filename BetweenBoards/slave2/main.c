@@ -106,7 +106,6 @@ int main(void) {
     initialize_system(); // initialization of system
     ms_ticks = 0; // initialize 'tick' counter to 0
     sei();
-
     //*******         THE CYCLIC CONTROL LOOP            **********//
     //*************************************************************//
     for (;;) {

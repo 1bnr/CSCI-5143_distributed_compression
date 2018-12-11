@@ -114,7 +114,7 @@ uint8_t i2c_write(uint8_t data) {
     // wait until transmission completed
     while (!(TWCR & (1 << TWINT))) {
       //USB_Mainloop_Handler();
-      printf("Waiting for write to finish sending\r\n");
+      //printf("Waiting for write to finish sending\r\n");
     }
 
     // check value of TWI Status Register. Mask prescaler bits
@@ -253,21 +253,22 @@ uint8_t * receive_bytes_from_slave(uint8_t devaddr, uint16_t *length) {
 
 
 
-  int send_bytes_to_slave(uint8_t devaddr, uint8_t *data, uint16_t length) {
+  int send_bytes_to_slave(uint8_t devaddr, uint8_t *data, uint16_t *length) {
       i2c_init();
 
-      if (i2c_start((devaddr << 1) | I2C_READ)) {
+      if (i2c_start((devaddr << 1) | I2C_WRITE)) {
           printf("i2c_start error\r\n");
           return -1;
       }
 
 
-      uint8_t val = (length >> 8);
-      uint8_t val2 = length;
+      uint8_t val = ((*length) >> 8);
+      uint8_t val2 = *length;
       i2c_write(val);
       i2c_write(val2);
       int i;
-      for ( i=0; i<length; i++) {
+      for ( i=0; i<*length; i++) {
+        printf("Sending data[%d]=%hxx\r\n",i,data[i]);
         i2c_write(data[i]);
       }
       i2c_stop();

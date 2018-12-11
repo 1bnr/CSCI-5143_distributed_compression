@@ -250,7 +250,7 @@ int send_bytes_to_master(uint8_t *buffer, uint16_t *bytes_to_send) {
         TWCR = (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
         int i;
 
-        for (i = 1; i < bytes_to_send - 1; i++) {
+        for (i = 1; i < *bytes_to_send - 1; i++) {
             printf("sending byte:%d\r\n", i);
 
             while ((TWCR & (1 << TWINT)) != (1 << TWINT))
@@ -360,8 +360,8 @@ uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
         *buffer_length = (one << 8) | two;
         buffer = (uint8_t *) malloc(*buffer_length);
         int i;
-
-        for (i = 0; i < buffer_length; i++) {
+        printf("The length of the buffer to get is %u",*buffer_length);
+        for (i = 0; i < *buffer_length; i++) {
             // Wait for the byte to be snt
             while ((TWCR & (1 << TWINT)) != (1 << TWINT)) {
                 USB_Mainloop_Handler();
@@ -392,7 +392,7 @@ uint8_t * receive_bytes_from_master(uint16_t *buffer_length) {
           buffer = (uint8_t *) malloc(0);
         }
     } else {
-      printf("Error: not in slave receiver mode\r\n");
+      printf("Error: not in slave receiver mode:%hhx\r\n",TWSR);
       return (uint8_t*) malloc(0);
     }
 }
@@ -482,23 +482,48 @@ void handleCommand(char *command) {
     switch (command[0]) {
         case ('R'):
         case ('r'): {
-            // READ COMMAND
-            memset(&buffer, 0, 16);
-            if (i2c_readReg(0x51, mem_location, buffer, 11))
-            printf("ERROR in read\r\n");
-          else
-            for (int i=0;i< 16; i++)
-            printf("addr: 0x%04x-> %c\r\n", (mem_location+i), (char)buffer[i]);
-            break;
+          slave_setup();
+          // This should receive a byte buffer from master
+          uint16_t * buffer_length = (uint16_t *) malloc(sizeof(uint16_t));
+          *buffer_length = 0;
+
+          uint8_t * buffer = receive_bytes_from_master(buffer_length);
+
+          if(*buffer_length ==0) {
+            printf("time to punch kittens\r\n");
+          } else {
+            for(int i =0; i < *buffer_length; i++) {
+              printf("Byte[%d]=%hhx\r\n",i,buffer[i]);
+            }
+          }
+          break;
         }
 
         // W/w write
         case ('W'):
         case ('w'): {
-            // WRITE COMMAND
-            sprintf((char *)buffer, "hello world");
-                if (i2c_writeReg(0x51, mem_location, buffer, 11))
-                  printf("ERROR in write\r\n");
+          slave_setup();
+          uint8_t* buffer;
+          uint16_t* buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
+          *buffer_length = 5;
+          buffer = (uint8_t *)malloc(sizeof(uint8_t) * 5);
+          buffer[0]='h';
+          buffer[1]='e';
+          buffer[2]='l';
+          buffer[3]='l';
+          buffer[4]='o';
+          printf("Buffer0:%hhx\r\n",buffer[0]);
+          printf("Buffer1:%hhx\r\n",buffer[1]);
+          printf("Buffer2:%hhx\r\n",buffer[2]);
+          printf("Buffer3:%hhx\r\n",buffer[3]);
+          printf("Buffer4:%hhx\r\n",buffer[4]);
+          int result = send_bytes_to_master(buffer,buffer_length);
+          if(result != 0) {
+            printf("More kittens need some punchin' \r\n");
+          } else {
+            printf("You're god damn right it worked\r\n");
+          }
+
             break;
         }
 
