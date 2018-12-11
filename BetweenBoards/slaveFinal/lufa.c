@@ -11,6 +11,7 @@
 #include "lufa.h"
 #include "leds.h"
 #include "i2c_master.h"
+#include "huffman.h"
 
 #define menuString "\
 R/r: read\r\n\
@@ -334,7 +335,7 @@ void handleCommand(char *command) {
         }
 
     case ('Z'):
-    case ('z'):
+    case ('z'):{
       slave_setup();
       printf("Receiving buffer from master\r\n");
       uint16_t * buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
@@ -352,15 +353,22 @@ void handleCommand(char *command) {
       }
 
       // Do the transform
+      uint8_t out_buffer[*buffer_length];
+      huffman_compress(buffer, *buffer_length, &out_buffer[0]);
+
+      uint16_t out_buffer_size = (out_buffer[1] << 8) | out_buffer[2];
+      out_buffer_size += 3;
+
       printf("Transform done");
-      int result = send_bytes_to_master(buffer, buffer_length);
+      int result = send_bytes_to_master(out_buffer, &out_buffer_size);
       if(result == 0) {
         printf("Bytes send correctly\r\n");
       } else {
         printf("error sending bytes to master\r\n");
       }
+break;
+}
 
-      break;
        default:
             printf(menuString);
     }

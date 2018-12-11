@@ -2,9 +2,9 @@
 
 import serial
 import sys
+import struct
 
 DEVICE_PORT = "/dev/ttyACM0"
-BLOCK_SIZE = 64 # 64 bytes per line
 
 if len(sys.argv) < 2:
     print("Please specify a filename")
@@ -19,23 +19,17 @@ dev = serial.Serial(DEVICE_PORT)
 
 print("writing %s to %s (%s bytes)" % (fname, dev.name, len(content)))
 
-dev.write(b'p\r\n') # initialize pagewrite mode
-dev.write(str(len(content)).encode('ascii')) # total amount of bytes to write
-dev.write(b'\r\n')
-dev.write(str(BLOCK_SIZE).encode('ascii')) # blocksize
-dev.write(b'\r\n')
+def pack_uint16(n):
+    return struct.pack('<H', n)
 
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
-
-for block in chunks(content, BLOCK_SIZE):
-    dev.write(block)
-    dev.write(b'\r\n')
+dev.write('\r\n')
+dev.write('p') # initialize pagewrite mode
+dev.write('\r\ntest\r\n')
+dev.write(pack_uint16(len(content))) # total amount of bytes to write
+dev.write(content)
 
 def printline(dev):
-    print(dev.readline().decode('ascii'), end='')
+    print(dev.readline().decode('ascii'))
 
 while True:
     printline(dev)

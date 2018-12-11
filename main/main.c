@@ -25,22 +25,8 @@
 // Uncomment this to print out debugging statements.
 //#define DEBUG 1
 
-// used for system time
-volatile uint64_t ms_ticks = 0;
-
 // mutex access to ms_ticks
 volatile uint8_t in_ui_mode = 0;
-
-
-/****************************************************************************
-   ms timer using TIMER0 (TIMSK0)
-****************************************************************************/
-void setupMStimer(void) {
-    TCCR0A |= (1 << WGM01); // set CTC mode (clear-timer-on-compare)
-    TCCR0B |= (1 << CS00) | (1 << CS01);
-    OCR0A = 249;
-    TIMSK0 |= (1 << OCIE0A);
-}
 
 void initialize_fram() {
      // initialize power supply portD pin4 astar pin 4
@@ -60,7 +46,6 @@ void initialize_system(void) {
     initialize_leds(); // set up the leds
     SetupHardware(); // usb communication
     initialize_fram();
-    setupMStimer(); // the ms_ticks timer0
 }
 
 
@@ -72,7 +57,6 @@ int main(void) {
 
     //  USBCON = 0;
     initialize_system(); // initialization of system
-    ms_ticks = 0; // initialize 'tick' counter to 0
     sei();
 
     //*******         THE CYCLIC CONTROL LOOP            **********//
@@ -83,12 +67,4 @@ int main(void) {
                 handleInput(c);
       }
     }
-}
-
-/****************************************************************************
-   ISR for TIMER used as SCHEDULER
-****************************************************************************/
-// Timer set up in timers.c always enables COMPA
-ISR(TIMER0_COMPA_vect) {
-    ms_ticks++;
 }

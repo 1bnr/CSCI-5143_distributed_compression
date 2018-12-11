@@ -10,8 +10,9 @@
 #include "lufa.h"
 #include "leds.h"
 #include "i2c_master.h"
+#include "huffman.h"
 
-#define menuString "(r)ead // (w)rite // (s)et address // (p)agewrite\r\n"
+#define menuString "(r)ead // (w)rite // (s)et address // (p)agewrite // (h)uffman test\r\n"
 
 typedef enum {
     HANDLE_COMMAND, HANDLE_MEM_LOC
@@ -23,6 +24,7 @@ static void handle_memory_location(char *input);
 
 input_handler handler = handleCommand;
 uint16_t mem_location = 0x0;
+
 
 static int read_line(char *buff, int max_len)
 {
@@ -54,6 +56,36 @@ static int read_line(char *buff, int max_len)
     return i;
 }
 
+static int read_bytes(char *buff, int num_bytes)
+{
+  int i;
+  for (i = 0; i < num_bytes; i++) {
+      char c = EOF;
+      while (c == EOF) {
+          USB_Mainloop_Handler();
+          c = fgetc(stdin);
+      }
+
+      USB_Mainloop_Handler();
+      buff[i] = c;
+  }
+
+  return i;
+}
+
+void test_huffman() {
+    char data[128];
+    read_line(&data[0], 128);
+    const uint16_t data_size = (uint16_t) strlen(data);
+
+    uint8_t out_data[128];
+    huffman_compress((uint8_t *) data, data_size, &out_data[0]);
+    uint16_t num_bits = (out_data[1] << 8) | out_data[2];
+    num_bits += 24; // header
+    printf("\norignal size: %d bits, %d bytes\r\n", data_size * 8, data_size);
+    printf("\ncomppressed size: %d bits, %d bytes\r\n", num_bits, num_bits / 8);
+}
+
 static void handle_memory_location(char *location)
 {
     mem_location = atoi(location);
@@ -63,35 +95,36 @@ static void handle_memory_location(char *location)
 
 static void execute_pagewrite(void)
 {
-    int buff_size = 16;
-    char buff[buff_size];
 
-    read_line(buff, buff_size);
-    // read total amount of bytes to be written first
-    uint16_t pagewrite_total_size = atoi(buff);
+  printf("In execute_pagewrite\n");
+  USB_Mainloop_Handler();
 
-    read_line(buff, buff_size);
-    // read amount of bytes per line
-    uint16_t pagewrite_block_size = atoi(buff);
-    char block[pagewrite_block_size + 1];
+  char buff[2];
+  read_bytes(buff, 2);
+  // read total amount of bytes to be written first
+  uint16_t pagewrite_total_size = (buff[1] << 8) | buff[0];
 
-    uint16_t bytes_written = 0;
+  // read amount of bytes
+  uint16_t pagewrite_block_size = 1;
+  char block[pagewrite_block_size];
 
-    i2c_write_start(MB85RC_DEFAULT_ADDRESS, 0);
+  uint16_t bytes_written = 0;
 
-    while (bytes_written < pagewrite_total_size) {
-        int bytes_read = read_line(block, pagewrite_block_size);
+  i2c_write_start(MB85RC_DEFAULT_ADDRESS, 0);
 
-        for (int i = 0; i < bytes_read; i++) {
-            i2c_write(block[i]);
-        }
-        
-        bytes_written += bytes_read;
-    }
+  while (bytes_written < pagewrite_total_size) {
+      int bytes_read = read_bytes(block, pagewrite_block_size);
 
-    i2c_stop();
-    printf("wrote %d bytes successfully\r\n", bytes_written);
-    USB_Mainloop_Handler();
+      for (int i = 0; i < bytes_read; i++) {
+          i2c_write(block[i]);
+      }
+
+      bytes_written += bytes_read;
+  }
+
+  i2c_stop();
+  printf("wrote %d bytes successfully\r\n", bytes_written);
+  USB_Mainloop_Handler();
 }
 
 void handleInput(char c) {
@@ -164,9 +197,16 @@ void handleCommand(char *command) {
 
         case ('p'):
         case ('P'):
-            printf("pagewrite mode, enter total size and block size\r\n");
+            printf("pagewrite mode, enter total size\r\n");
             USB_Mainloop_Handler();
             execute_pagewrite();
+            break;
+
+        case ('h'):
+        case ('H'):
+            printf("test huffman_compress\n");
+            test_huffman();
+            break;
 
         default:
             printf(menuString);

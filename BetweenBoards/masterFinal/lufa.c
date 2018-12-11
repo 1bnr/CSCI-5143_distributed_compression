@@ -26,7 +26,7 @@ void wait_for_start(void) {
 	TWSR = 0x00; // Clears the Status Code Register and all prescalers.
 	TWCR |= (1<<TWEN)|(1<<TWEA); // Enables the TWI Interface.
   //TWCR = 0b01000100;//init address
-  
+
 
   while ((TWCR & (1<<TWINT)) != (1 << TWINT)){
     USB_Mainloop_Handler();
@@ -171,20 +171,16 @@ void handleCommand(char *command) {
     case ('z'): {
       int board_num = 1;
       uint8_t slave_addr = 0x51;
-      uint8_t* buffer;
       uint16_t* buffer_length = (uint16_t*)malloc(sizeof(uint16_t));
-      *buffer_length = 6;
+      const uint8_t *buffer = "dddddddddfsafdsfasdfsdaferfertre";
+
+      *buffer_length = 32;
       for(int k =0; k < 2; k++) {
         printf("Sending to board 1\r\n");
         USB_Mainloop_Handler();
-                buffer = (uint8_t *)malloc(sizeof(uint8_t) * 6);
-        buffer[0]='b';
-        buffer[1]='u';
-        buffer[2]='f';
-        buffer[3]='f';
-        buffer[4]='e';
-        buffer[5]='r';
-        int result = send_bytes_to_slave(slave_addr,buffer, buffer_length);
+
+
+        int result = send_bytes_to_slave(slave_addr,buffer+(k*(*buffer_length)), buffer_length);
         if(result != 0) {
           printf("Error sending to board 1\r\n");
           break;
@@ -197,7 +193,7 @@ void handleCommand(char *command) {
           slave_addr = 0x52;
         }
     }
-      slave_addr=0x51; 
+      slave_addr=0x51;
       _delay_ms(1000);
       for(int k =0; k <2; k++) {
         // Waiting for board 1
@@ -219,7 +215,7 @@ void handleCommand(char *command) {
           slave_addr = 0x52;
         }
       }
-    } 
+    }
         default:
             printf(menuString);
     }
