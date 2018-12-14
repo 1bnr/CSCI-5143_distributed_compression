@@ -1,8 +1,7 @@
 /*
-   based on the widely available i2c_master library, this repo isn't were I found
-   the original source (it was on some AVR forum), but I had to make alterations
-   to suit the needs of this project
-   https://github.com/g4lvanix/I2C-master-lib/blob/master/i2c_master.c
+   based on the widely used i2c_master library written by Peter Fleury, but
+   I had to make alterations to suit the needs of this project.
+   http://homepage.hispeed.ch/peterfleury/doxygen/avr-gcc-libraries/group__pfleury__ic2master.html
 
  */
 
@@ -50,7 +49,6 @@ uint8_t i2c_start(uint8_t address) {
         // check value of TWI Status Register. Mask prescaler bits.
         if ( ((TWSR & 0xF8) != TW_MT_SLA_ACK) && ((TWSR & 0xF8) != TW_MR_SLA_ACK) ) {
                 printf("Error: i2c_start failed acknowledment\r\n");
-                printf("TWSR & 0xF8 : %04x\r\nTW_MT_DATA_ACK : %04x\r\n", (TWSR & 0xF8), TW_MT_DATA_ACK);
                 return 1;
         }
 
