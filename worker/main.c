@@ -16,15 +16,36 @@
 
 #include "lufa.h"
 #include "common.h"
+#include "buttons.h"
 #include "leds.h"
 
-
+volatile uint8_t workerID = 0;
+volatile uint8_t buttonHoldCount = 0;
+volatile uint8_t buttonRelease = 0;
+volatile uint8_t button_A_mode = 0;
 // Uncomment this to print out debugging statements.
 //#define DEBUG 1
 
-void slave_setup() {
-        // set the addr to 0x51
-        TWAR = (0x52<<1);
+
+
+void A_press () {
+  buttonHoldCount = 0;
+  while (!buttonRelease) {
+    _delay_ms(500);
+    if ( ++buttonHoldCount >10) {
+      button_A_mode = 1;
+      workerID = 0;
+      break;
+    } else if (button_A_mode)
+      workerID++;
+  }
+
+}
+void A_release() {buttonRelease = 1;}
+
+void set_i2c_address(uint8_t workerID) {
+        // set the address register to this workerID
+        TWAR = (workerID<<1);
         // Set the clock frequency to 100khz
         TWBR = ((((16000000UL / F_SCL) / 1) - 16) / 2);
         TWCR |= (1<<TWEN)|(1<<TWEA); // Enables the TWI Interface.
@@ -36,6 +57,11 @@ void slave_setup() {
 void initialize_system(void) {
         initialize_leds(); // set up the leds
         SetupHardware(); // usb communication
+        // setup the buttons
+        initialize_buttons();
+        SetUpButton(&_button_A);
+        SetUpButtonAction(&_button_A, 0, A_press);
+        SetUpButtonAction(&_button_A, 1, A_release);
         light_show();
 }
 

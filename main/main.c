@@ -18,6 +18,8 @@
 #include "leds.h"
 #include "buttons.h"
 
+
+
 // record of start and end of stored data on fram
 struct file {
         uint16_t start;
@@ -33,10 +35,38 @@ struct fs {
 // declarations for input/output functions
 int input_data(struct file * f);
 int output_data(struct file * f);
-// button A release action
-void Arelease() { input_data(&(_fs->input));}
 // button C release action
-void Crelease() { initialize_fs(); output_data(&(_fs->input));}
+void C_release() { initialize_fs(); output_data(&(_fs->input));}
+
+volatile uint8_t buttonHoldCount = 0;
+volatile uint8_t buttonRelease = 0;
+// Uncomment this to print out debugging statements.
+//#define DEBUG 1
+
+
+// press and hold button A to reformat storage
+void A_press () {
+  printf("A_press\r\n");
+  buttonRelease = 0;
+  buttonHoldCount = 0;
+  while (!buttonRelease) {
+    _delay_ms(500);
+    if ( ++buttonHoldCount >10) { // 5 second hold; reformat storage
+      printf("calling format_storage\r\n");
+      format_storage(MB85RC_DEFAULT_ADDRESS);
+      break;
+    } else if (buttonRelease){// short press and release; read in data from serial connection
+      input_data(&(_fs->input));
+      break;
+    }
+  }
+
+}
+void A_release() {
+  printf("buttonRelease\r\n");
+  buttonRelease = 1;
+}
+
 
 // Uncomment this to print out debugging statements.
 //#define DEBUG 1
@@ -56,6 +86,7 @@ void initialize_fram() {
 // read data from stdin, write to FRAM; file f is a struct that defines start
 // and end of data
 int input_data(struct file * f){
+  printf("calling input_data\r\n");
         busy_light();
         char buffer[9];
         int bytes_read = 0;
@@ -136,11 +167,11 @@ void initialize_system(void) {
         initialize_buttons();
         SetUpButton(&_button_A);
         SetUpButton(&_button_C);
-        SetUpButtonAction(&_button_A, 1, Arelease);
-        SetUpButtonAction(&_button_C, 1, Crelease);
+        SetUpButtonAction(&_button_A, 0, A_press);
+        SetUpButtonAction(&_button_A, 1, A_release);
+        SetUpButtonAction(&_button_C, 1, C_release);
         // initialize the FRAM
         initialize_fram();
-        //format_storage(MB85RC_DEFAULT_ADDRESS); // only run this to format the storage
         initialize_fs();
         light_show(); // so we know when formating is done
 }
