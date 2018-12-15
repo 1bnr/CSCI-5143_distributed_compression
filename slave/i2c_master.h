@@ -10,6 +10,7 @@
 void i2c_init(void);
 uint8_t i2c_start(uint8_t address);
 uint8_t i2c_start_wait(uint8_t address);
+uint8_t i2c_start_timeout(uint8_t address, uint8_t ms_timeout);
 uint8_t i2c_write(uint8_t data);
 uint8_t i2c_read_ack(void);
 uint8_t i2c_read_nack(void);
@@ -20,5 +21,6 @@ uint8_t i2c_readReg(uint8_t devaddr, uint16_t regaddr, uint8_t* data, uint16_t l
 uint8_t i2c_write_start(uint8_t devaddr, uint16_t regaddr);
 void format_storage(uint8_t devaddr);
 void i2c_stop(void);
+void i2c_slave_init_send();
 
 #endif // I2C_MASTER_H

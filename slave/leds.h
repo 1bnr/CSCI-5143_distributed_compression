@@ -19,8 +19,8 @@
   DDRB |= (1<<DDB0);
 // external LEDs
 
-#define INIT_RED_E _red_e = (IO_struct) { &DDRE, &PORTE, 6, &PINE }; \
-  DDRE |= (1<<DDE6);
+#define INIT_RED_E _red_e = (IO_struct) { &DDRB, &PORTB, 5, &PINB }; \
+  DDRB |= (1<<DDB5);
 #define INIT_GREEN_E _green_e = (IO_struct) { &DDRD, &PORTD, 0, &PIND }; \
   DDRD |= (1<<DDD0);
 IO_struct _yellow;
