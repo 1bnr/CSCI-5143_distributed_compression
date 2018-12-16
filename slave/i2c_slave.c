@@ -2,8 +2,10 @@
 #include <avr/io.h>
 #include <util/twi.h>
 #include <avr/interrupt.h>
+#include <string.h> /* strlen */
 
 #include "i2c_slave.h"
+#include "huffman.h"
 
 void i2c_slave_init(uint8_t address){
 	// load address into TWI address register
@@ -41,7 +43,7 @@ ISR(TWI_vect){
 			// clear TWI interrupt flag, prepare to receive next byte and acknowledge
 			TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
 		}
-		else{ // if a databyte has already been received
+		else{ // if a data byte has already been received
 
 			// store the data at the current address
 			in_buffer[buffer_address] = data;
@@ -61,6 +63,18 @@ ISR(TWI_vect){
 				TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEN);
 			}
 		}
+		// process job
+		// emptying out_buffer will set I2C_BUSY to status byte of buffer
+		memset((void*) out_buffer, 0, 256);
+		uint8_t seq_num = (in_buffer[0]>>1);
+		if (ENCODE == (in_buffer[0] | ENCODE)){ // if job is encode
+			huffman_compress(&in_buffer[2], in_buffer[1], &out_buffer[2]);
+			out_buffer[1] = strlen(&out_buffer[2]);
+		} else { // else job is decode
+			huffman_inflate(&in_buffer[2], in_buffer[1], &out_buffer[2]);
+			out_buffer[1] = strlen(&out_buffer[2]);
+		}
+		out_buffer[0] = ((seq_num<<1) | I2C_READY);
 	}
 	else if( TW_ST_DATA_ACK == (TWSR & 0xF8) ){ // device has been addressed to be a transmitter
 

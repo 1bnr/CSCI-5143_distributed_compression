@@ -10,6 +10,7 @@
 #define F_CPU 16000000UL
 #endif
 
+#include <util/delay.h>
 #include <avr/io.h>
 #include <util/twi.h>
 #include <stdio.h>
@@ -24,15 +25,21 @@
 void i2c_init(void) {
   TWBR = (uint8_t)TWBR_val;
 }
+/******************************************************************************
+    A start with a timeout is used to auto sense clear addresses; slave starts
+    in Master mode, begins trying addresses starting with the default 0x40, then
+    incrementing every time it recives a response until a request timesout.
 
-uint8_t i2c_start(uint8_t address) {
+    A timeout of 0 is the same as no timeout.
+*******************************************************************************/
+uint8_t i2c_start_timeout(uint8_t address, uint8_t ms_timeout) {
   // reset TWI control register
   TWCR = 0;
   // transmit START condition
   TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
 
   // wait for end of transmission
-  while (!(TWCR & (1 << TWINT)) );
+  while (!(TWCR & (1 << TWINT)));
 
   // check if the start condition was successfully transmitted
   if ((TWSR & 0xF8) != TW_START) {
@@ -44,17 +51,25 @@ uint8_t i2c_start(uint8_t address) {
   TWDR = address;
   TWCR = (1 << TWINT) | (1 << TWEN);
 
-  // wail until transmission completed and ACK/NACK has been received
-  while (!(TWCR & (1 << TWINT)));
+  // wail until transmission completed and ACK/NACK has been received or timeout occurs
+  if (ms_timeout > 0){
+      // will timeout after ms_timeout miliseconds
+      while ((ms_timeout--) && (!(TWCR & (1 << TWINT)))) _delay_ms(1);
+  } else // no timeout; wait until response is received
+    while (!(TWCR & (1 << TWINT)));
 
   // check value of TWI Status Register. Mask prescaler bits.
   if ( ((TWSR & 0xF8) != TW_MT_SLA_ACK) && ((TWSR & 0xF8) != TW_MR_SLA_ACK) ) {
-    printf("Error: i2c_start failed acknowledment\r\n");
-    printf("TWSR & 0xF8 : %04x\r\nTW_MT_DATA_ACK : %04x\r\n", (TWSR & 0xF8), TW_MT_DATA_ACK);
-    return 1;
+    //printf("Error: i2c_start failed acknowledment\r\n");
+    return 1; // will occur if timed out waiting for ack/nack
   }
 
   return 0;
+}
+
+
+uint8_t i2c_start(uint8_t address){
+  return i2c_start_timeout(address, 0); // no timeout
 }
 
 uint8_t i2c_start_wait(uint8_t address) {
@@ -163,8 +178,8 @@ uint8_t i2c_receive(uint8_t address, uint8_t *data, uint16_t length) {
 
   return 0;
 }
-
-uint8_t i2c_write_start(uint8_t devaddr, uint16_t fram_addr)
+// read from device devaddr at buffer offset of offset_addr
+uint8_t i2c_write_start(uint8_t devaddr, uint16_t offset_addr)
 {
   i2c_init();
 
@@ -176,14 +191,14 @@ uint8_t i2c_write_start(uint8_t devaddr, uint16_t fram_addr)
   // wait for end of transmission
   while (!(TWCR & (1 << TWINT)) );
   // first write is the destination address
-  i2c_write(fram_addr >> 8);
-  i2c_write(fram_addr & 0xFF);
+  i2c_write(offset_addr >> 8);
+  i2c_write(offset_addr & 0xFF);
 
   return 0;
 }
-// write data to fram over i2c
-uint8_t i2c_writeReg(uint8_t devaddr, uint16_t fram_addr, uint8_t *data, uint16_t length) {
-  if (i2c_write_start(devaddr, fram_addr)) {
+// write length bytes to device devaddr at buffer offset of offset_addr from data
+uint8_t i2c_writeReg(uint8_t devaddr, uint16_t offset_addr, uint8_t *data, uint16_t length) {
+  if (i2c_write_start(devaddr, offset_addr)) {
     printf("write_start failed");
     return 1;
   }
@@ -200,8 +215,8 @@ uint8_t i2c_writeReg(uint8_t devaddr, uint16_t fram_addr, uint8_t *data, uint16_
   return 0;
 }
 
-// read length bytes starting at fram_addr, one byte at a time over i2c bus
-uint8_t i2c_readReg(uint8_t devaddr, uint16_t fram_addr, uint8_t *data, uint16_t length) {
+// read length bytes starting at offset_addr, one byte at a time over i2c bus
+uint8_t i2c_readReg(uint8_t devaddr, uint16_t offset_addr, uint8_t *data, uint16_t length) {
   // start device connection
   i2c_init();
 
@@ -211,8 +226,8 @@ uint8_t i2c_readReg(uint8_t devaddr, uint16_t fram_addr, uint8_t *data, uint16_t
   }
 
   // write the source address to read from
-  i2c_write(fram_addr >> 8);
-  i2c_write(fram_addr & 0xFF);
+  i2c_write(offset_addr >> 8);
+  i2c_write(offset_addr & 0xFF);
 
   // start again in read mode
   if (i2c_start((devaddr << 1) | I2C_READ)) {

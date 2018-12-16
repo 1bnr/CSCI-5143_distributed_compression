@@ -30,7 +30,6 @@ typedef struct encoding_info {
 typedef struct {
     uint8_t *buff;
     uint16_t buff_index;
-
     uint16_t bitnum;
 } bitstream_t;
 
