@@ -1,4 +1,9 @@
+/*
+	based on code found here:
+	https://github.com/g4lvanix/I2C-slave-lib
+	some changes were made to better suit the project
 
+*/
 #include <avr/io.h>
 #include <util/twi.h>
 #include <avr/interrupt.h>
