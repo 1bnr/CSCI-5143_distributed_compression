@@ -53,7 +53,7 @@ uint8_t i2c_start_timeout(uint8_t address, uint8_t ms_timeout) {
   // wail until transmission completed and ACK/NACK has been received or timeout occurs
   if (ms_timeout > 0){
       // will timeout after ms_timeout miliseconds
-      while ((ms_timeout--) && (!(TWCR & (1 << TWINT)))) _delay_ms(1);
+      while ((ms_timeout--) || (!(TWCR & (1 << TWINT)))) _delay_ms(1);
   } else // no timeout; wait until response is received
     while (!(TWCR & (1 << TWINT)));
 

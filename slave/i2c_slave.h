@@ -4,8 +4,9 @@
 #define I2C_SLAVE_BASE_ID (0x20)
 #define I2C_READY 1
 #define I2C_BUSY 0
-#define ENCODE 2
-#define DECODE 4
+#define JOB_BIT 1
+#define ENCODE (1<<JOB_BIT)
+#define DECODE (0<<JOB_BIT)
 
 
 volatile uint8_t buffer_address;

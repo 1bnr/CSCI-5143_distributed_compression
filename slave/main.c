@@ -32,14 +32,6 @@
 #define F_SCL 100000UL // SCL frequency
 #endif
 
-#ifndef ENCODE
-#define ENCODE 2
-#endif
-
-#ifndef DECODE
-#define DECODE 4
-#endif
-
 
 extern void SetupHardware(void);
 extern void USB_Mainloop_Handler(void);
@@ -55,7 +47,7 @@ volatile uint8_t workerID = I2C_SLAVE_BASE_ID;
  */
 void auto_address() {
         i2c_slave_stop(); // clears control register
-        USB_Mainloop_Handler();
+        //USB_Mainloop_Handler();
         i2c_init();
         // i2c_start_timeout returns 0 if workerID is alredy on bus;
         // wait for timeout and an error response to an address not present
@@ -64,7 +56,7 @@ void auto_address() {
                 workerID++;
         }
         printf("address %hhx is clear, setting up slave\r\n", workerID );
-        USB_Mainloop_Handler();
+        //USB_Mainloop_Handler();
         i2c_stop();
         i2c_slave_init(workerID);
 }
@@ -86,9 +78,9 @@ void initialize_i2c(){
    ALL INITIALIZATION
 ****************************************************************************/
 void initialize_system(void) {
-        initialize_i2c();
+        //initialize_i2c();   // power up i2c bus
         initialize_leds(); // set up the leds
-        SetupHardware(); // usb communication
+        SetupHardware();  // usb communication
         // setup the buttons
         initialize_buttons();
         SetUpButton(&_button_A);

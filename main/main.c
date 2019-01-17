@@ -135,21 +135,18 @@ void pollButtonC(){
 
 // Uncomment this to print out debugging statements.
 //#define DEBUG 1
-// initialize the FRAM chip
-void initialize_fram() {
+// initialize the power to the i2c bus
+void initialize_i2c() {
   // initialize power supply portB pin4 astar pin 8
   DDRB |= (1 << DDB4);
   PORTB |= (1 << PORTB4);
-
-  // address pins on PB4,PB5,PB6 (astar 8,9,10)
-  // sda PD1 (astar 2)
-  // SCL PD0 (astar 3)
   i2c_init(); // initialize I2C library
 
 }
 // read data from stdin, write to FRAM; file f is a struct that defines start
 // and end of data
 int input_datastream(struct file * f){
+  char raw_text = '*';
   printf("calling input_data\r\n");
   busy_light();
   char buffer[9];
@@ -158,6 +155,11 @@ int input_datastream(struct file * f){
   while (fgets(buffer, 9, stdin)) {
     USB_Mainloop_Handler();
     bytes_read = strlen(buffer);
+    if ((f->end == f->start) && (buffer[0] != '#' )) {// # is compression flag
+      // write '*' signaling that this is raw text, not compressed text
+      i2c_writeReg(MB85RC_DEFAULT_ADDRESS, f->end, (uint8_t*) &raw_text, 1);
+      f->end++;
+    }
     USB_Mainloop_Handler();
     i2c_writeReg(MB85RC_DEFAULT_ADDRESS, f->end, (uint8_t*) buffer, bytes_read);
     f->end +=bytes_read;
@@ -196,7 +198,10 @@ int output_datastream(struct file * f) {
     if (size) {
       i2c_readReg(MB85RC_DEFAULT_ADDRESS, address, (uint8_t*) buffer, size);
       address+=8;
-      printf(buffer);
+      if ((address == f->start) && (buffer[0] == '*')) // remove raw_text flag
+        printf(&buffer[1]);
+      else
+        printf(buffer);
       USB_Mainloop_Handler();
       memset(buffer, 0, 9);
     }
@@ -215,8 +220,8 @@ void sequence_blocks (block_seq_t * seq, uint8_t block_count){
     i2c_readReg(MB85RC_DEFAULT_ADDRESS, address, (uint8_t*) buffer, 2);
     block_seq_t * block = &seq[(buffer[0]>>1)]; // select block by seq_num
     block->start = address;
-    block->size = buffer[1];
-    address =+ buffer[1] + 2; // 2 bytes for header [seq_num|job][size]
+    block->size = (buffer[1]>>2);
+    address += block->size + 2; // 2 bytes for header [seq_num|job][size]
   }
 }
 
@@ -242,12 +247,23 @@ uint8_t scan_i2c(uint8_t * workers) {
 /*******************************************************************************
   begin sending jobs to workers
 *******************************************************************************/
-void processData(uint8_t job){
+void processData(){
 
   file_t * output = &(_fs->output); // output file on FRAM
   file_t * input = &(_fs->input); // input file on FRAM
-  uint8_t irp = input->start; // read "pointer"; next byte to read in "file"
-  uint8_t orp = output->start; // read "pointer"; next byte to read in "file"
+
+  // what job needs processing?
+  uint8_t job = 0; // read job flag from first byte of input file
+  i2c_readReg(MB85RC_DEFAULT_ADDRESS, input->start, (uint8_t*) &job, 1);
+  if (job == '*') { // input has raw text flag, it needs to be compressed
+    job = ENCODE;
+    uint8_t compression_flag = '#'; // write the compression flag to output file
+    i2c_writeReg(MB85RC_DEFAULT_ADDRESS, output->start, &compression_flag, 1);
+    output->end++;
+  } else {
+    job = DECODE;
+  }
+
   uint8_t block_count = 0;
   struct block_seq_t * seq ;
 
@@ -264,11 +280,14 @@ void processData(uint8_t job){
     sequence_blocks(seq, block_count);
   }
 
+  uint8_t irp = input->start + 1; // read "pointer"; next byte to read in "file"
+  uint8_t orp = output->start; // read "pointer"; next byte to read in "file"
+
   // once data has been loaded onto the FRAM input "file", begin processing
   uint8_t block = 0;
   while ( block < block_count) {
-    // first and second bytes are for worker status and message size
-    uint8_t * status = in_buffer;
+    // first and second bytes are for worker metadata and message size
+    uint8_t * status = in_buffer; // status bits: [1_status][2_job][3-8_seq_num]
     uint8_t * bytes_in = &in_buffer[1];
     // loop over workers checking for readiness
     for (int i=0; i< worker_count; i++) {
@@ -295,7 +314,7 @@ void processData(uint8_t job){
           irp += bytes_read; // advance "read pointer" for next read
           // send data to worker; first two bytes are job code and data size
           i2c_writeReg(workers[i], 0, out_buffer, bytes_read + 2);
-        } else { // job is decode; encoded data will be available sized
+        } else { // job is decode; encoded data will be variable sized
           // read first byte at irp to determine size of encoded block on FRAM
           i2c_readReg(MB85RC_DEFAULT_ADDRESS, irp++, &out_buffer[1], 1 );
           // fill out_buffer from FRAM input "file" starting at irp
@@ -315,8 +334,8 @@ void processData(uint8_t job){
   of two "Files" in the first four bytes of the FRAM. The first file starts at
   FRAM byte 4 is input; raw data written in through the serial inteface.
   The input is the data that is to be processed by the system. The second file,
-  starting at FRAM byte 1604 is output, the post processed data, prefixed by the
-  length of the data block, recorded in the first byte of the block.
+  starting at FRAM byte 1604 is output, the post processed data, prefixed by
+  a symbol that differentiates compressed text from raw text
 *******************************************************************************/
 void initialize_fs(){
   uint16_t metadata[4];
@@ -338,18 +357,22 @@ void initialize_fs(){
    ALL INITIALIZATION
 ****************************************************************************/
 void initialize_system() {
-  // initialize the FRAM
-  initialize_fram();
-  initialize_fs();
   initialize_leds(); // set up the leds
+  flash_led(&_red_e,0);
+  // initialize the FRAM
+  //initialize_i2c();
+  flash_led(&_red_e,0);
+  initialize_fs();
+  flash_led(&_red_e,0);
   SetupHardware(); // usb communication
+  flash_led(&_red_e,0);
   // setup the buttons
   initialize_buttons();
   SetUpButton(&_button_A);
   SetUpButton(&_button_C);
   SetUpButtonAction(&_button_A, 0, A_press);
   SetUpButtonAction(&_button_A, 1, A_release);
-  SetUpButtonAction(&_button_C, 1, C_press);
+  SetUpButtonAction(&_button_C, 0, C_press);
   SetUpButtonAction(&_button_C, 1, C_release);
   light_show(); // so we know when formating is done
 }
@@ -359,6 +382,7 @@ void initialize_system() {
 ****************************************************************************/
 int main(void) {
   //  USBCON = 0;
+
   initialize_system(); // initialization of system
   sei();
 

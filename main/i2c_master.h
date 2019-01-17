@@ -10,8 +10,9 @@
 #define MB85RC_SLAVE_ID (0xF8)
 #define I2C_SLAVE_BASE_ID (0x20) // base i2c address for worker boards
 // job codes
-#define ENCODE 2
-#define DECODE 4
+#define JOB_BIT 1
+#define ENCODE (1<<JOB_BIT)
+#define DECODE (0<<JOB_BIT)
 
 volatile uint8_t out_buffer[256];
 volatile uint8_t in_buffer[256];

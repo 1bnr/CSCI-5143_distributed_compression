@@ -68,18 +68,19 @@ ISR(TWI_vect){
 				TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEN);
 			}
 		}
-		// process job
+		// process job; status byte / metadata bits: [1_status][2_job][3-8_seq_num]
 		// emptying out_buffer will set I2C_BUSY to status byte of buffer
 		memset((void*) out_buffer, 0, 256);
-		uint8_t seq_num = (in_buffer[0]>>1);
-		if (ENCODE == (in_buffer[0] | ENCODE)){ // if job is encode
+		uint8_t seq_num = (in_buffer[0]>>2); // strip off status and job bits
+		uint8_t job = ((1<<JOB_BIT) & in_buffer[0]);
+		if (ENCODE == (job & ENCODE)){ // if job is encode
 			huffman_compress(&in_buffer[2], in_buffer[1], &out_buffer[2]);
 			out_buffer[1] = strlen(&out_buffer[2]);
 		} else { // else job is decode
 			huffman_inflate(&in_buffer[2], in_buffer[1], &out_buffer[2]);
 			out_buffer[1] = strlen(&out_buffer[2]);
-		}
-		out_buffer[0] = ((seq_num<<1) | I2C_READY);
+		} // fill output status bit with block seq_num, job code, and ready flag
+		out_buffer[0] = ((seq_num<<2) | job | I2C_READY);
 	}
 	else if( TW_ST_DATA_ACK == (TWSR & 0xF8) ){ // device has been addressed to be a transmitter
 
